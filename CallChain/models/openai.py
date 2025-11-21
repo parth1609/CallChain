@@ -10,7 +10,7 @@ class OpenAIModel:
     interface for generating text.
     """
     
-    def __init__(self, model_name: str = "gpt-4o", api_key: Optional[str] = None):
+    def __init__(self, model_name: str | None = None, api_key: str = None):
         """
         Initialize the OpenAIModel.
         

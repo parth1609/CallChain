@@ -10,12 +10,12 @@ class GroqModel:
     interface for generating text.
     """
     
-    def __init__(self, model_name: str = "llama3-8b-8192", api_key: Optional[str] = None):
+    def __init__(self, model_name: str | None = None, api_key: str = None):
         """
         Initialize the GroqModel.
         
         Args:
-            model_name: The name of the model to use (default: "llama3-8b-8192").
+            model_name: The name of the model to use .
             api_key: Groq API key. If None, loads from GROQ_API_KEY env var.
             
         Raises:

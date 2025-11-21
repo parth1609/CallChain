@@ -76,17 +76,17 @@ class AudioTranscriber:
 
 
 # Example usage
-if __name__ == "__main__":
-    # Initialize with API key from environment variable
-    transcriber = AudioTranscriber()
+# if __name__ == "__main__":
+#     # Initialize with API key from environment variable
+#     transcriber = AudioTranscriber()
     
-    # Or initialize with API key directly
-    # transcriber = AudioTranscriber(api_key="your_api_key_here")
+#     # Or initialize with API key directly
+#     # transcriber = AudioTranscriber(api_key="your_api_key_here")
     
-    # Transcribe an audio file
-    try:
-        text = transcriber.transcribe("satisfaction_analysis.mp3")
-        print("Transcription:")
-        print(text)
-    except Exception as e:
-        print(f"Error: {e}")
+#     # Transcribe an audio file
+#     try:
+#         text = transcriber.transcribe("satisfaction_analysis.mp3")
+#         print("Transcription:")
+#         print(text)
+#     except Exception as e:
+#         print(f"Error: {e}")
