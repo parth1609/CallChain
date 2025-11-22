@@ -1,92 +1,107 @@
 import os
-from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 from groq import Groq
-
+from .config import AudioConfig
+from .processor import AudioProcessor
 
 class AudioTranscriber:
     """
-    A simple audio transcriber using Groq's Whisper model.
-    
-    Example:
-        # Initialize with your API key
-        transcriber = AudioTranscriber(api_key="your_api_key")
-        
-        # Transcribe an audio file
-        text = transcriber.transcribe("audio.mp3")
-        print(text)
+    A simple audio transcriber using Groq's Whisper model with optional
+    preprocessing (resampling, normalization, silence trimming, noise reduction).
     """
-    
+
     def __init__(
         self,
         api_key: Optional[str] = None,
         model: str = "whisper-large-v3-turbo",
         language: str = "en",
-        temperature: float = 0.0
+        temperature: float = 0.0,
+        # ---- Pre‑processing options (kept for backward compatibility) ----
+        target_sr: int = 16000,
+        normalize: bool = True,
+        trim_silence: bool = True,
+        noise_reduction: bool = False,
+        # ---- New Config Object ----
+        config: Optional[AudioConfig] = None
     ):
         """
         Initialize the AudioTranscriber.
-        
+
+        You can initialize this class in two ways:
+        1. Pass individual parameters (backward compatible).
+        2. Pass an `AudioConfig` object for cleaner configuration.
+
         Args:
-            api_key: Your Groq API key. If not provided, will try to load from GROQ_API_KEY environment variable.
-            model: The Whisper model to use for transcription.
-            language: Language of the audio (ISO 639-1 code).
-            temperature: Sampling temperature (0.0 to 1.0).
+            api_key: Groq API key.
+            model: Whisper model name.
+            language: Language code.
+            temperature: Sampling temperature.
+            target_sr: Target sample rate for preprocessing.
+            normalize: Whether to normalize audio.
+            trim_silence: Whether to trim silence.
+            noise_reduction: Whether to apply noise reduction.
+            config: An optional AudioConfig object. If provided, it overrides individual parameters.
         """
-        self.api_key = api_key or os.getenv("GROQ_API_KEY")
-        if not self.api_key:
-            raise ValueError(
-                "No API key provided. Either pass it to the constructor or set GROQ_API_KEY environment variable."
+        if config:
+            self.config = config
+        else:
+            self.config = AudioConfig(
+                api_key=api_key,
+                model=model,
+                language=language,
+                temperature=temperature,
+                target_sr=target_sr,
+                normalize=normalize,
+                trim_silence=trim_silence,
+                noise_reduction=noise_reduction
             )
-            
-        self.client = Groq(api_key=self.api_key)
-        self.model = model
-        self.language = language
-        self.temperature = temperature
-    
+        
+        # Ensure API key is present
+        if not self.config.api_key:
+             raise ValueError(
+                "No API key provided. Either pass it to the constructor, set it in AudioConfig, "
+                "or set GROQ_API_KEY environment variable."
+            )
+
+        self.client = Groq(api_key=self.config.api_key)
+        self.processor = AudioProcessor(self.config)
+
     def transcribe(self, audio_path: str) -> str:
         """
-        Transcribe an audio file to text.
+        Transcribe an audio file to text after optional preprocessing.
         
         Args:
-            audio_path: Path to the audio file to transcribe.
+            audio_path: Path to the audio file.
             
         Returns:
             The transcribed text.
-            
-        Raises:
-            FileNotFoundError: If the audio file doesn't exist.
-            Exception: For any errors during the API call.
         """
         if not os.path.isfile(audio_path):
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
-            
-        with open(audio_path, "rb") as audio_file:
-            try:
-                response = self.client.audio.transcriptions.create(
-                    file=audio_file,
-                    model=self.model,
-                    language=self.language,
-                    temperature=self.temperature,
-                    response_format="text"  # Get plain text directly
-                )
-                return response
-            except Exception as e:
-                raise Exception(f"Error during transcription: {str(e)}")
 
+        # ---- Pre‑process -------------------------------------------------
+        processed_audio = self.processor.preprocess(audio_path)
+
+        # ---- Call Groq Whisper -----------------------------------------
+        try:
+            response = self.client.audio.transcriptions.create(
+                file=processed_audio,
+                model=self.config.model,
+                language=self.config.language,
+                temperature=self.config.temperature,
+                response_format="text",  # plain text
+            )
+            return response
+        except Exception as e:
+            raise Exception(f"Error during transcription: {str(e)}")
 
 # Example usage
-# if __name__ == "__main__":
-#     # Initialize with API key from environment variable
-#     transcriber = AudioTranscriber()
+if __name__ == "__main__":
+    # Example 1: Using individual parameters (Old way)
+    # transcriber = AudioTranscriber()
     
-#     # Or initialize with API key directly
-#     # transcriber = AudioTranscriber(api_key="your_api_key_here")
+    # Example 2: Using AudioConfig (New way)
+    # config = AudioConfig(noise_reduction=True)
+    # transcriber = AudioTranscriber(config=config)
     
-#     # Transcribe an audio file
-#     try:
-#         text = transcriber.transcribe("satisfaction_analysis.mp3")
-#         print("Transcription:")
-#         print(text)
-#     except Exception as e:
-#         print(f"Error: {e}")
+    pass
