@@ -1,5 +1,5 @@
 from typing import Dict, Any, List, Union
-from CallChain.models.base import Model, StringPromptTemplate
+from CallChain.models.base import Model, StringPromptTemplate, PromptTemplate
 
 class Chain:
     """
@@ -14,23 +14,23 @@ class Chain:
         """Initialize an empty Chain."""
         self.steps: List[Dict[str, Any]] = []
 
-    def step(self, name: str, model: Model, PromptTemplate: Union[str, Any]) -> 'Chain':
+    def step(self, name: str, model: Model, prompt_template: Union[str, Any]) -> 'Chain':
         """
         Add a step to the chain.
         
         Args:
             name: The name of the step (used as key in results).
             model: The LLM model to use for this step.
-            PromptTemplate: The prompt template (string or PromptTemplate object).
+            prompt_template: The prompt template (string or PromptTemplate object).
             
         Returns:
             The Chain instance itself (for method chaining).
         """
         # If user passes a string, wrap it in our StringPromptTemplate
-        if isinstance(PromptTemplate, str):
-            template_obj = StringPromptTemplate(PromptTemplate)
+        if isinstance(prompt_template, str):
+            template_obj = StringPromptTemplate(prompt_template)
         else:
-            template_obj = PromptTemplate 
+            template_obj = prompt_template 
 
         self.steps.append({
             "name": name,
@@ -54,25 +54,29 @@ class Chain:
             Exception: If a model fails to generate a response.
         """
         
-        # context = kwargs.copy()
-        # results = {}
+        # Use a copy of kwargs to avoid modifying the original input dictionary
+        context = kwargs.copy()
+        results = {}
         
         for step in self.steps:
-            # Format the PromptTemplate with current context
+            # Format the template with current context
             try:
-                prompt = step["PromptTemplate"].format(**kwargs)
+                prompt = step["PromptTemplate"].format(**context)
                 print(f"--- Step: {step['name']} ---\nPrompt: {prompt}")
             except KeyError as e:
-                raise ValueError(f"Missing variable {e}")
+                raise ValueError(f"Missing variable {e} for step '{step['name']}'")
             
             # Generate response
             try:
                 output = step["model"].generate(prompt)
             except Exception as e:
-                raise Exception(f"failed: {str(e)}")
+                raise Exception(f"Step '{step['name']}' failed: {str(e)}")
             
+            # Update context and results
+            results[step["name"]] = output
+            context[step["name"]] = output
             
-        return output
+        return results
 
 # Example usage
 # if __name__ == "__main__":

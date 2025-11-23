@@ -1,13 +1,13 @@
 import os
 from typing import Optional, Union
-from groq import Groq
 from .config import AudioConfig
 from .processor import AudioProcessor
+from .clients import AudioClient, GroqAudioClient
 
 class AudioTranscriber:
     """
-    A simple audio transcriber using Groq's Whisper model with optional
-    preprocessing (resampling, normalization, silence trimming, noise reduction).
+    A simple audio transcriber using a pluggable AudioClient (default: Groq)
+    with optional preprocessing (resampling, normalization, silence trimming, noise reduction).
     """
 
     def __init__(
@@ -22,25 +22,24 @@ class AudioTranscriber:
         trim_silence: bool = True,
         noise_reduction: bool = False,
         # ---- New Config Object ----
-        config: Optional[AudioConfig] = None
+        config: Optional[AudioConfig] = None,
+        # ---- New Client Injection ----
+        client: Optional[AudioClient] = None
     ):
         """
         Initialize the AudioTranscriber.
 
-        You can initialize this class in two ways:
-        1. Pass individual parameters (backward compatible).
-        2. Pass an `AudioConfig` object for cleaner configuration.
-
         Args:
-            api_key: Groq API key.
-            model: Whisper model name.
+            api_key: API key for the default client (Groq). Ignored if `client` is provided.
+            model: Model name.
             language: Language code.
             temperature: Sampling temperature.
             target_sr: Target sample rate for preprocessing.
             normalize: Whether to normalize audio.
             trim_silence: Whether to trim silence.
             noise_reduction: Whether to apply noise reduction.
-            config: An optional AudioConfig object. If provided, it overrides individual parameters.
+            config: An optional AudioConfig object.
+            client: An optional AudioClient instance. If not provided, defaults to GroqAudioClient.
         """
         if config:
             self.config = config
@@ -56,14 +55,13 @@ class AudioTranscriber:
                 noise_reduction=noise_reduction
             )
         
-        # Ensure API key is present
-        if not self.config.api_key:
-             raise ValueError(
-                "No API key provided. Either pass it to the constructor, set it in AudioConfig, "
-                "or set GROQ_API_KEY environment variable."
-            )
+        # Initialize Client
+        if client:
+            self.client = client
+        else:
+            # Default to Groq for backward compatibility
+            self.client = GroqAudioClient(api_key=self.config.api_key)
 
-        self.client = Groq(api_key=self.config.api_key)
         self.processor = AudioProcessor(self.config)
 
     def transcribe(self, audio_path: str) -> str:
@@ -82,26 +80,37 @@ class AudioTranscriber:
         # ---- Pre‑process -------------------------------------------------
         processed_audio = self.processor.preprocess(audio_path)
 
-        # ---- Call Groq Whisper -----------------------------------------
+        # ---- Call Client -------------------------------------------------
         try:
-            response = self.client.audio.transcriptions.create(
-                file=processed_audio,
+            return self.client.transcribe(
+                audio_file=processed_audio,
                 model=self.config.model,
                 language=self.config.language,
-                temperature=self.config.temperature,
-                response_format="text",  # plain text
+                temperature=self.config.temperature
             )
-            return response
         except Exception as e:
             raise Exception(f"Error during transcription: {str(e)}")
 
 # Example usage
-if __name__ == "__main__":
-    # Example 1: Using individual parameters (Old way)
-    # transcriber = AudioTranscriber()
+# if __name__ == "__main__":
+    # # Fix for running this script directly
+    # import sys
+    # import os
+    # from load_dotenv import load_dotenv
+    # load_dotenv()
+    # if __package__ is None:
+    #     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+    #     from CallChain.audio.config import AudioConfig
+    #     from CallChain.audio.transcribe import AudioTranscriber
+    #     from CallChain.audio.clients import GroqAudioClient
     
-    # Example 2: Using AudioConfig (New way)
-    # config = AudioConfig(noise_reduction=True)
-    # transcriber = AudioTranscriber(config=config)
+    # print("🎤 Initializing AudioTranscriber...")
     
-    pass
+    # try:
+    #     # Example: Injecting a client explicitly
+    #     groq_client = GroqAudioClient()
+    #     transcriber = AudioTranscriber(client=groq_client)
+    #     print("✅ Transcriber initialized with explicit Groq client")
+        
+    # except Exception as e:
+    #     print(f"❌ Error: {e}")

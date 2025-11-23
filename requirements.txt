@@ -1,2 +1,7 @@
 openai
-load_dotenv
+groq
+librosa
+soundfile
+numpy
+noisereduce
+python-dotenv
